@@ -7,8 +7,23 @@ import RoadIssues from './pages/RoadIssues'
 import Traffic from './pages/Traffic'
 import LiveMap from './pages/LiveMap'
 import { useFleetData } from './hooks/useFleetData'
+import { AuthProvider, useAuth } from './auth/AuthProvider'
+import Login from './pages/Login'
+import DriverDashboard from './pages/DriverDashboard'
 
 export default function App() {
+  return <AuthProvider><AuthenticatedApp /></AuthProvider>
+}
+
+function AuthenticatedApp() {
+  const { user, profile, loading } = useAuth()
+  if (loading) return <div className="auth-loading"><div className="auth-loading-mark"><img src="/sih-logo.png" alt="SIH logo" /></div><span>Restoring secure session</span></div>
+  if (!user) return <Routes><Route path="*" element={<Login />} /></Routes>
+  if (profile?.role === 'driver') return <Routes><Route path="/driver" element={<DriverDashboard />} /><Route path="*" element={<Navigate to="/driver" replace />} /></Routes>
+  return <AuthorityApp profile={profile} />
+}
+
+function AuthorityApp({ profile }) {
   const fleet = useFleetData()
   const [notifications, setNotifications] = useState([])
   const [theme, setTheme] = useState(() => localStorage.getItem('sbi-theme') || 'dark')
@@ -20,7 +35,7 @@ export default function App() {
   })
   const context = useMemo(() => ({ ...fleet, notifications, dismissNotification, theme }), [fleet, notifications, theme])
 
-  return <AppShell {...context} onToggleTheme={toggleTheme}>
+  return <AppShell {...context} profile={profile} onToggleTheme={toggleTheme}>
     <Routes>
       <Route path="/" element={<Dashboard {...context} />} />
       <Route path="/map" element={<LiveMap {...context} />} />

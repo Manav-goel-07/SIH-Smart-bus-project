@@ -16,7 +16,8 @@
     "react": "latest",
     "react-dom": "latest",
     "react-leaflet": "latest",
-    "react-router-dom": "latest"
+    "react-router-dom": "latest",
+    "@supabase/supabase-js": "latest"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "latest",

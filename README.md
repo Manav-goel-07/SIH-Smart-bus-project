@@ -68,9 +68,21 @@ The frontend already includes a `.env` file with the default backend URL. To cre
 
 ```env
 VITE_API_URL=http://127.0.0.1:8000
+VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+VITE_SUPABASE_VIDEO_BUCKET=bus-videos
 ```
 
-Change this value if the backend is running on another host or port.
+Change the API value if the backend is running on another host or port. Get the Supabase URL and anon key from **Project settings > API**. The anon key is safe for browser use; never put a Supabase service-role key in `frontend/.env`.
+
+### Supabase setup
+
+1. Create a Supabase project and enable Email auth under **Authentication > Providers**.
+2. Copy `frontend/supabase/schema.sql` into the Supabase SQL editor and run it. This creates the profile table, driver-owned private video storage policies, and the `bus-videos` bucket.
+3. Start the frontend and open `/`. Users can sign up as a driver or authority. Driver accounts go to `/driver`; authority accounts go to the existing operations dashboard.
+4. For a real deployment, promote authority users manually in Supabase using the SQL comment at the bottom of `frontend/supabase/schema.sql`. Do not rely on a client-selected admin role for production authorization without adding an approval workflow.
+
+When the Supabase values are empty, the app shows the setup warning instead of pretending that authentication is working.
 
 ## 4. Install and run the frontend
 
@@ -101,6 +113,7 @@ npm run dev -- --port 5174
 - `/incidents` - Incident monitoring and status workflow
 - `/road-issues` - Corroborated road issue registry
 - `/traffic` - Traffic observations and hotspot analytics
+- `/driver` - Driver video upload workspace (requires a driver profile)
 
 ## Production build
 
