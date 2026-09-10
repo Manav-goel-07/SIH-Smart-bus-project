@@ -20,6 +20,10 @@ from ultralytics import YOLO
 
 MODEL_REPO = os.getenv("MODEL_REPO", "Rahaf2001/sabiq-road-detection")
 MODEL_FILENAME = os.getenv("MODEL_FILENAME", "best.pt")
+VEHICLE_MODEL_REPO = os.getenv("VEHICLE_MODEL_REPO", "Madan11/two-wheeler-detector")
+VEHICLE_MODEL_FILENAME = os.getenv("VEHICLE_MODEL_FILENAME", "best.pt")
+VEHICLE_MODEL_PATH = os.getenv("VEHICLE_MODEL_PATH", str(Path(__file__).resolve().parent.parent / "models" / "vehicle_best.pt"))
+VEHICLE_CONFIDENCE = float(os.getenv("ML_VEHICLE_CONFIDENCE", "0.25"))
 CONFIDENCE = float(os.getenv("ML_CONFIDENCE", "0.10"))
 IMAGE_SIZE = int(os.getenv("ML_IMAGE_SIZE", "640"))
 USE_AUGMENT = os.getenv("ML_AUGMENT", "true").lower() in {"1", "true", "yes", "on"}
@@ -38,6 +42,7 @@ app.add_middleware(
 )
 
 model: YOLO | None = None
+vehicle_model: YOLO | None = None
 
 
 def patch_yolov12_attention() -> None:
@@ -92,6 +97,14 @@ def get_model() -> YOLO:
     return model
 
 
+def get_vehicle_model() -> YOLO:
+    global vehicle_model
+    if vehicle_model is None:
+        model_path = VEHICLE_MODEL_PATH if Path(VEHICLE_MODEL_PATH).exists() else hf_hub_download(repo_id=VEHICLE_MODEL_REPO, filename=VEHICLE_MODEL_FILENAME)
+        vehicle_model = YOLO(model_path)
+    return vehicle_model
+
+
 def detections_from_result(result: Any, detector: YOLO, frame_number: int, timestamp_seconds: float) -> list[dict[str, Any]]:
     names = result.names or detector.names
     detections = []
@@ -112,9 +125,14 @@ def detections_from_result(result: Any, detector: YOLO, frame_number: int, times
     return detections
 
 
-def infer_result(image: Any) -> Any:
-    detector = get_model()
-    return detector.predict(source=image, conf=CONFIDENCE, imgsz=IMAGE_SIZE, augment=USE_AUGMENT, verbose=False)[0]
+def infer_result(image: Any, detector: YOLO | None = None, confidence: float | None = None) -> Any:
+    detector = detector or get_model()
+    return detector.predict(source=image, conf=confidence or CONFIDENCE, imgsz=IMAGE_SIZE, augment=USE_AUGMENT, verbose=False)[0]
+
+
+def annotate_frame(frame: Any, road_result: Any, vehicle_result: Any) -> Any:
+    annotated = road_result.plot(img=frame, labels=True, boxes=True)
+    return vehicle_result.plot(img=annotated, labels=True, boxes=True)
 
 
 def infer_frame(image: Any, frame_number: int, timestamp_seconds: float) -> list[dict[str, Any]]:
@@ -139,7 +157,7 @@ def summarize(detections: list[dict[str, Any]], frames_processed: int, duration_
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "model": MODEL_REPO, "model_file": MODEL_FILENAME, "model_loaded": model is not None, "confidence": CONFIDENCE, "image_size": IMAGE_SIZE, "augment": USE_AUGMENT}
+    return {"status": "ok", "models": {"road_damage": MODEL_REPO, "vehicles": VEHICLE_MODEL_REPO}, "model_files": {"road_damage": MODEL_FILENAME, "vehicles": VEHICLE_MODEL_PATH if Path(VEHICLE_MODEL_PATH).exists() else VEHICLE_MODEL_FILENAME}, "models_loaded": {"road_damage": model is not None, "vehicles": vehicle_model is not None}, "confidence": {"road_damage": CONFIDENCE, "vehicles": VEHICLE_CONFIDENCE}, "image_size": IMAGE_SIZE, "augment": USE_AUGMENT}
 
 
 @app.post("/predict/image")
@@ -158,9 +176,13 @@ async def predict_image(file: UploadFile = File(...)) -> dict[str, Any]:
         image = cv2.imread(temp_path, cv2.IMREAD_COLOR)
         if image is None:
             raise HTTPException(status_code=400, detail="The image could not be decoded.")
-        detections = infer_frame(temp_path, 0, 0)
-        annotated_result = infer_result(temp_path)
-        annotated_image = annotated_result.plot()
+        road_detector = get_model()
+        vehicle_detector = get_vehicle_model()
+        road_result = infer_result(temp_path, road_detector, CONFIDENCE)
+        vehicle_result = infer_result(temp_path, vehicle_detector, VEHICLE_CONFIDENCE)
+        detections = detections_from_result(road_result, road_detector, 0, 0)
+        detections.extend(detections_from_result(vehicle_result, vehicle_detector, 0, 0))
+        annotated_image = annotate_frame(image, road_result, vehicle_result)
         encoded_ok, encoded = cv2.imencode(".jpg", annotated_image, [cv2.IMWRITE_JPEG_QUALITY, 90])
         if not encoded_ok:
             raise RuntimeError("The annotated image could not be encoded")
@@ -175,7 +197,7 @@ async def predict_image(file: UploadFile = File(...)) -> dict[str, Any]:
                 pass
     return {
         "file_name": file.filename,
-        "runtime": {"confidence": CONFIDENCE, "image_size": IMAGE_SIZE, "augment": USE_AUGMENT},
+        "runtime": {"road_confidence": CONFIDENCE, "vehicle_confidence": VEHICLE_CONFIDENCE, "image_size": IMAGE_SIZE, "augment": USE_AUGMENT},
         "detections": detections,
         "summary": summarize(detections, 1, 0),
         "annotated_image_base64": base64.b64encode(encoded.tobytes()).decode("ascii"),
@@ -224,10 +246,13 @@ async def predict_video(file: UploadFile = File(...)) -> dict[str, Any]:
                     break
                 output_frame = frame
                 if frame_number % FRAME_INTERVAL == 0:
-                    detector = get_model()
-                    result = infer_result(frame)
-                    detections.extend(detections_from_result(result, detector, frame_number, frame_number / fps))
-                    output_frame = result.plot()
+                    road_detector = get_model()
+                    vehicle_detector = get_vehicle_model()
+                    road_result = infer_result(frame, road_detector, CONFIDENCE)
+                    vehicle_result = infer_result(frame, vehicle_detector, VEHICLE_CONFIDENCE)
+                    detections.extend(detections_from_result(road_result, road_detector, frame_number, frame_number / fps))
+                    detections.extend(detections_from_result(vehicle_result, vehicle_detector, frame_number, frame_number / fps))
+                    output_frame = annotate_frame(frame, road_result, vehicle_result)
                     frames_processed += 1
                 writer.write(output_frame)
                 frame_number += 1
@@ -250,7 +275,7 @@ async def predict_video(file: UploadFile = File(...)) -> dict[str, Any]:
             annotated_video = base64.b64encode(annotated_file.read()).decode("ascii")
         return {
             "file_name": file.filename,
-            "model": MODEL_REPO,
+            "models": {"road_damage": MODEL_REPO, "vehicles": VEHICLE_MODEL_REPO},
             "detections": detections,
             "summary": summarize(detections, frames_processed, duration),
             "annotated_video_base64": annotated_video,
