@@ -2,6 +2,23 @@
 
 > **Turning public buses into mobile urban sensing units for real-time city intelligence.**
 
+## 📋 Problem Statement
+
+| **Problem Statement ID**    | **26124**                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------ |
+| **Problem Statement Title** | **AI-Powered Mobile Urban Intelligence Platform Using Public Transport Fleet** |
+
+## 👥 Team — Pixel-Pirates
+
+| **Team Member** | **Role**                            |
+| --------------- | ----------------------------------- |
+| **Rehan Garg**  | Backend Development                 |
+| **Manav Goel**  | Frontend Development                |
+| **Aditya**      | Machine Learning                    |
+| **Sabhya Goel** | Frontend–Backend API Integration    |
+| **Siya**        | Machine Learning                    |
+| **Tunishi**     | Project Architecture & Presentation |
+
 Smart Bus Intelligence is an AI-powered urban sensing platform that transforms existing cameras on public buses into a distributed network of mobile sensors.
 
 Instead of cameras simply recording footage, the system uses **Edge AI + Computer Vision + Geospatial Processing + Real-Time Analytics** to detect road infrastructure problems, traffic conditions, and critical safety incidents across a city.
