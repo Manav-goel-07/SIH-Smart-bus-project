@@ -1,6 +1,6 @@
 # UrbanEye Road-Damage ML Service
 
-This service runs road-damage detection for UrbanEye uploads using the [`Rahaf2001/sabiq-road-detection`](https://huggingface.co/Rahaf2001/sabiq-road-detection) Ultralytics checkpoint.
+This service runs two detectors together for UrbanEye uploads: SABIQ for road damage and [`Madan11/two-wheeler-detector`](https://huggingface.co/Madan11/two-wheeler-detector) for vehicles.
 
 ## What it detects
 
@@ -9,6 +9,11 @@ The model is trained on the RDD2022 classes:
 - `crack` - Longitudinal, transverse, or alligator crack
 - `other` - Other road corruption
 - `pothole` - Pothole
+
+Vehicle classes:
+
+- `auto_rickshaw`, `bicycle`, `bus`, `car`, `motorcycle`
+- `pickup`, `scooter`, `truck`, `van`
 
 ## Requirements
 
@@ -94,7 +99,11 @@ The service supports these environment variables:
 ```env
 MODEL_REPO=Rahaf2001/sabiq-road-detection
 MODEL_FILENAME=best.pt
+VEHICLE_MODEL_REPO=Madan11/two-wheeler-detector
+VEHICLE_MODEL_FILENAME=best.pt
+VEHICLE_MODEL_PATH=models/vehicle_best.pt
 ML_CONFIDENCE=0.10
+ML_VEHICLE_CONFIDENCE=0.25
 ML_IMAGE_SIZE=640
 ML_FRAME_INTERVAL=12
 ML_MAX_VIDEO_MB=500

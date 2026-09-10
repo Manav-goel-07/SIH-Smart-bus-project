@@ -5,12 +5,14 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
   avatar_url text,
-  role text not null default 'driver' check (role in ('driver', 'admin')),
+  role text not null default 'driver' check (role in ('driver', 'admin', 'user')),
   bus_id text,
   created_at timestamptz not null default now()
 );
 
 alter table public.profiles add column if not exists avatar_url text;
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles add constraint profiles_role_check check (role in ('driver', 'admin', 'user'));
 alter table public.profiles enable row level security;
 grant usage on schema public to authenticated;
 grant select, update on table public.profiles to authenticated;
@@ -32,7 +34,10 @@ begin
   values (
     new.id,
     new.raw_user_meta_data ->> 'full_name',
-    case when new.raw_user_meta_data ->> 'role' = 'admin' then 'admin' else 'driver' end,
+    case
+      when new.raw_user_meta_data ->> 'role' in ('admin', 'user') then new.raw_user_meta_data ->> 'role'
+      else 'driver'
+    end,
     new.raw_user_meta_data ->> 'bus_id'
   ) on conflict (id) do nothing;
   return new;
