@@ -1,6 +1,7 @@
 import os
 import logging
 import base64
+import subprocess
 import tempfile
 from collections import Counter
 from pathlib import Path
@@ -17,12 +18,14 @@ os.environ.setdefault("YOLO_CONFIG_DIR", str(Path(__file__).resolve().parent.par
 
 from ultralytics import YOLO
 
-MODEL_REPO = os.getenv("MODEL_REPO", "rezzzq/yolo12s-road-damage-rdd2022")
-MODEL_FILENAME = os.getenv("MODEL_FILENAME", "yolo12s_RDD2022_best.pt")
+MODEL_REPO = os.getenv("MODEL_REPO", "Rahaf2001/sabiq-road-detection")
+MODEL_FILENAME = os.getenv("MODEL_FILENAME", "best.pt")
 CONFIDENCE = float(os.getenv("ML_CONFIDENCE", "0.10"))
+IMAGE_SIZE = int(os.getenv("ML_IMAGE_SIZE", "640"))
 USE_AUGMENT = os.getenv("ML_AUGMENT", "true").lower() in {"1", "true", "yes", "on"}
 FRAME_INTERVAL = max(1, int(os.getenv("ML_FRAME_INTERVAL", "12")))
 MAX_VIDEO_MB = int(os.getenv("ML_MAX_VIDEO_MB", "500"))
+FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")
 
 app = FastAPI(title="UrbanEye Road Damage ML Service", version="1.0.0")
 logger = logging.getLogger("urbaneye-ml")
@@ -89,9 +92,7 @@ def get_model() -> YOLO:
     return model
 
 
-def infer_frame(image: Any, frame_number: int, timestamp_seconds: float) -> list[dict[str, Any]]:
-    detector = get_model()
-    result = detector.predict(source=image, conf=CONFIDENCE, imgsz=640, augment=USE_AUGMENT, verbose=False)[0]
+def detections_from_result(result: Any, detector: YOLO, frame_number: int, timestamp_seconds: float) -> list[dict[str, Any]]:
     names = result.names or detector.names
     detections = []
     if result.boxes is None:
@@ -111,6 +112,17 @@ def infer_frame(image: Any, frame_number: int, timestamp_seconds: float) -> list
     return detections
 
 
+def infer_result(image: Any) -> Any:
+    detector = get_model()
+    return detector.predict(source=image, conf=CONFIDENCE, imgsz=IMAGE_SIZE, augment=USE_AUGMENT, verbose=False)[0]
+
+
+def infer_frame(image: Any, frame_number: int, timestamp_seconds: float) -> list[dict[str, Any]]:
+    detector = get_model()
+    result = infer_result(image)
+    return detections_from_result(result, detector, frame_number, timestamp_seconds)
+
+
 def summarize(detections: list[dict[str, Any]], frames_processed: int, duration_seconds: float) -> dict[str, Any]:
     counts = Counter(item["class_name"] for item in detections)
     confidence_by_class: dict[str, list[float]] = {}
@@ -127,7 +139,7 @@ def summarize(detections: list[dict[str, Any]], frames_processed: int, duration_
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "model": MODEL_REPO, "model_file": MODEL_FILENAME, "model_loaded": model is not None, "confidence": CONFIDENCE, "augment": USE_AUGMENT}
+    return {"status": "ok", "model": MODEL_REPO, "model_file": MODEL_FILENAME, "model_loaded": model is not None, "confidence": CONFIDENCE, "image_size": IMAGE_SIZE, "augment": USE_AUGMENT}
 
 
 @app.post("/predict/image")
@@ -147,7 +159,7 @@ async def predict_image(file: UploadFile = File(...)) -> dict[str, Any]:
         if image is None:
             raise HTTPException(status_code=400, detail="The image could not be decoded.")
         detections = infer_frame(temp_path, 0, 0)
-        annotated_result = get_model().predict(source=temp_path, conf=CONFIDENCE, imgsz=640, augment=USE_AUGMENT, verbose=False)[0]
+        annotated_result = infer_result(temp_path)
         annotated_image = annotated_result.plot()
         encoded_ok, encoded = cv2.imencode(".jpg", annotated_image, [cv2.IMWRITE_JPEG_QUALITY, 90])
         if not encoded_ok:
@@ -163,7 +175,7 @@ async def predict_image(file: UploadFile = File(...)) -> dict[str, Any]:
                 pass
     return {
         "file_name": file.filename,
-        "runtime": {"confidence": CONFIDENCE, "augment": USE_AUGMENT},
+        "runtime": {"confidence": CONFIDENCE, "image_size": IMAGE_SIZE, "augment": USE_AUGMENT},
         "detections": detections,
         "summary": summarize(detections, 1, 0),
         "annotated_image_base64": base64.b64encode(encoded.tobytes()).decode("ascii"),
@@ -176,6 +188,8 @@ async def predict_video(file: UploadFile = File(...)) -> dict[str, Any]:
     if not file.content_type or not file.content_type.startswith("video/"):
         raise HTTPException(status_code=415, detail="Upload a video file.")
     temp_path = None
+    annotated_path = None
+    browser_annotated_path = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename or "upload.mp4").suffix or ".mp4") as temp:
             temp_path = temp.name
@@ -191,6 +205,15 @@ async def predict_video(file: UploadFile = File(...)) -> dict[str, Any]:
         fps = capture.get(cv2.CAP_PROP_FPS) or 25.0
         frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         duration = frame_count / fps if frame_count else 0
+        width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+        height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+        if width <= 0 or height <= 0:
+            raise HTTPException(status_code=400, detail="The video has no readable dimensions.")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".avi") as annotated_temp:
+            annotated_path = annotated_temp.name
+        writer = cv2.VideoWriter(annotated_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
+        if not writer.isOpened():
+            raise HTTPException(status_code=502, detail="The annotated video could not be created.")
         detections = []
         frame_number = 0
         frames_processed = 0
@@ -199,19 +222,53 @@ async def predict_video(file: UploadFile = File(...)) -> dict[str, Any]:
                 ok, frame = capture.read()
                 if not ok:
                     break
+                output_frame = frame
                 if frame_number % FRAME_INTERVAL == 0:
-                    detections.extend(infer_frame(frame, frame_number, frame_number / fps))
+                    detector = get_model()
+                    result = infer_result(frame)
+                    detections.extend(detections_from_result(result, detector, frame_number, frame_number / fps))
+                    output_frame = result.plot()
                     frames_processed += 1
+                writer.write(output_frame)
                 frame_number += 1
         except Exception as error:
             logger.exception("Video inference failed")
             raise HTTPException(status_code=502, detail=f"Model inference failed: {error}") from error
         finally:
             capture.release()
-        return {"file_name": file.filename, "model": MODEL_REPO, "detections": detections, "summary": summarize(detections, frames_processed, duration)}
+            writer.release()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as browser_temp:
+            browser_annotated_path = browser_temp.name
+        conversion = subprocess.run([
+            FFMPEG_PATH, "-y", "-loglevel", "error", "-i", annotated_path,
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+            "-an", browser_annotated_path,
+        ], capture_output=True, text=True)
+        if conversion.returncode != 0:
+            raise RuntimeError(f"Browser video conversion failed: {conversion.stderr.strip()}")
+        with open(browser_annotated_path, "rb") as annotated_file:
+            annotated_video = base64.b64encode(annotated_file.read()).decode("ascii")
+        return {
+            "file_name": file.filename,
+            "model": MODEL_REPO,
+            "detections": detections,
+            "summary": summarize(detections, frames_processed, duration),
+            "annotated_video_base64": annotated_video,
+            "annotated_video_mime_type": "video/mp4",
+        }
     finally:
         if temp_path:
             try:
                 os.unlink(temp_path)
+            except FileNotFoundError:
+                pass
+        if annotated_path:
+            try:
+                os.unlink(annotated_path)
+            except FileNotFoundError:
+                pass
+        if browser_annotated_path:
+            try:
+                os.unlink(browser_annotated_path)
             except FileNotFoundError:
                 pass

@@ -1,16 +1,14 @@
 # UrbanEye Road-Damage ML Service
 
-This service runs road-damage detection for UrbanEye video uploads using the [`rezzzq/yolo12s-road-damage-rdd2022`](https://huggingface.co/rezzzq/yolo12s-road-damage-rdd2022) YOLOv12-small model.
+This service runs road-damage detection for UrbanEye uploads using the [`Rahaf2001/sabiq-road-detection`](https://huggingface.co/Rahaf2001/sabiq-road-detection) Ultralytics checkpoint.
 
 ## What it detects
 
 The model is trained on the RDD2022 classes:
 
-- `D00` - Longitudinal crack
-- `D10` - Transverse crack
-- `D20` - Alligator crack
-- `D40` - Pothole
-- `Repair` - Repaired area
+- `crack` - Longitudinal, transverse, or alligator crack
+- `other` - Other road corruption
+- `pothole` - Pothole
 
 ## Requirements
 
@@ -94,9 +92,10 @@ Video inference samples frames using `ML_FRAME_INTERVAL` and returns:
 The service supports these environment variables:
 
 ```env
-MODEL_REPO=rezzzq/yolo12s-road-damage-rdd2022
-MODEL_FILENAME=yolo12s_RDD2022_best.pt
+MODEL_REPO=Rahaf2001/sabiq-road-detection
+MODEL_FILENAME=best.pt
 ML_CONFIDENCE=0.10
+ML_IMAGE_SIZE=640
 ML_FRAME_INTERVAL=12
 ML_MAX_VIDEO_MB=500
 ML_AUGMENT=true
