@@ -48,6 +48,10 @@ values ('bus-videos', 'bus-videos', false)
 on conflict (id) do nothing;
 
 insert into storage.buckets (id, name, public)
+values ('bus-images', 'bus-images', false)
+on conflict (id) do nothing;
+
+insert into storage.buckets (id, name, public)
 values ('profile-avatars', 'profile-avatars', false)
 on conflict (id) do nothing;
 
@@ -58,6 +62,14 @@ create policy "Drivers can upload their own videos" on storage.objects for inser
 drop policy if exists "Users can view their own videos" on storage.objects;
 create policy "Users can view their own videos" on storage.objects for select
   to authenticated using (bucket_id = 'bus-videos' and (storage.foldername(name))[1] = (select auth.uid()::text));
+
+drop policy if exists "Drivers can upload their own images" on storage.objects;
+create policy "Drivers can upload their own images" on storage.objects for insert
+  to authenticated with check (bucket_id = 'bus-images' and (storage.foldername(name))[1] = (select auth.uid()::text));
+
+drop policy if exists "Users can view their own images" on storage.objects;
+create policy "Users can view their own images" on storage.objects for select
+  to authenticated using (bucket_id = 'bus-images' and (storage.foldername(name))[1] = (select auth.uid()::text));
 
 drop policy if exists "Users can upload their own avatar" on storage.objects;
 create policy "Users can upload their own avatar" on storage.objects for insert
