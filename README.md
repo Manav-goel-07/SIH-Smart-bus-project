@@ -78,9 +78,9 @@ Change the API value if the backend is running on another host or port. Get the 
 ### Supabase setup
 
 1. Create a Supabase project and enable Email auth under **Authentication > Providers**.
-2. Copy `frontend/supabase/schema.sql` into the Supabase SQL editor and run it. This creates the profile table, driver-owned private video storage policies, and the `bus-videos` bucket.
+2. Copy `supabase/schema.sql` into the Supabase SQL editor and run it. This creates the profile table, editable profile fields, driver-owned private video storage policies, and the `bus-videos` and `profile-avatars` buckets.
 3. Start the frontend and open `/`. Users can sign up as a driver or authority. Driver accounts go to `/driver`; authority accounts go to the existing operations dashboard.
-4. For a real deployment, promote authority users manually in Supabase using the SQL comment at the bottom of `frontend/supabase/schema.sql`. Do not rely on a client-selected admin role for production authorization without adding an approval workflow.
+4. For a real deployment, promote authority users manually in Supabase using the SQL comment at the bottom of `supabase/schema.sql`. Do not rely on a client-selected admin role for production authorization without adding an approval workflow.
 
 When the Supabase values are empty, the app shows the setup warning instead of pretending that authentication is working.
 

@@ -14,7 +14,7 @@ export function AuthProvider({ children }) {
     const metadata = user.user_metadata || {}
     let profileData = null
     if (supabase) {
-      const response = await supabase.from('profiles').select('role, full_name, bus_id').eq('id', user.id).maybeSingle()
+      const response = await supabase.from('profiles').select('role, full_name, avatar_url, bus_id').eq('id', user.id).maybeSingle()
       if (!response.error) profileData = response.data
     }
     setProfile({
@@ -22,6 +22,7 @@ export function AuthProvider({ children }) {
       email: user.email,
       role: profileData?.role || user.app_metadata?.role || metadata.role || 'admin',
       full_name: profileData?.full_name || metadata.full_name || user.email?.split('@')[0] || 'Operator',
+      avatar_url: profileData?.avatar_url || metadata.avatar_url || '',
       bus_id: profileData?.bus_id || metadata.bus_id || ''
     })
   }, [])
@@ -58,7 +59,25 @@ export function AuthProvider({ children }) {
     return result
   }
   const signOut = async () => { if (supabase) await supabase.auth.signOut(); setSession(null); setProfile(null) }
-  const value = useMemo(() => ({ session, user: session?.user || null, profile, loading, error, signIn, signUp, signOut, configured: supabaseConfigured }), [session, profile, loading, error])
+  const updateProfile = async ({ fullName, avatarFile }) => {
+    if (!supabase || !session?.user) return { error: new Error('You must be signed in to update your profile.') }
+    let avatarUrl = profile?.avatar_url || ''
+    if (avatarFile) {
+      const safeName = avatarFile.name.replace(/[^a-z0-9._-]/gi, '-')
+      const path = `${session.user.id}/${Date.now()}-${safeName}`
+      const upload = await supabase.storage.from('profile-avatars').upload(path, avatarFile, { upsert: false, contentType: avatarFile.type, cacheControl: '3600' })
+      if (upload.error) return upload
+      const signed = await supabase.storage.from('profile-avatars').createSignedUrl(path, 60 * 60 * 24 * 365)
+      if (signed.error) return signed
+      avatarUrl = signed.data.signedUrl
+    }
+    const result = await supabase.from('profiles').update({ full_name: fullName, avatar_url: avatarUrl }).eq('id', session.user.id)
+    if (result.error) return result
+    await supabase.auth.updateUser({ data: { full_name: fullName, avatar_url: avatarUrl } })
+    setProfile((current) => ({ ...current, full_name: fullName, avatar_url: avatarUrl }))
+    return { data: { fullName, avatarUrl }, error: null }
+  }
+  const value = useMemo(() => ({ session, user: session?.user || null, profile, loading, error, signIn, signUp, signOut, updateProfile, configured: supabaseConfigured }), [session, profile, loading, error])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
