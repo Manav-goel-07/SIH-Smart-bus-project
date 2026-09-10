@@ -8,6 +8,8 @@ Smart Bus Intelligence turns public buses into mobile urban sensing units. The b
 smart-bus-intelligence/
 ├── backend/        FastAPI + PostgreSQL/PostGIS service
 ├── frontend/       React + Vite + Tailwind dashboard
+├── ml-service/     FastAPI + Ultralytics road-damage inference service
+├── supabase/       Supabase schema and storage policies
 └── README.md
 ```
 
@@ -125,6 +127,28 @@ npm run preview
 ```
 
 The frontend reads data from the FastAPI API and does not generate fake operational records. If the backend is unavailable, the dashboard shows explicit loading, empty, and error states instead of hiding the problem.
+
+## 6. Run the road-damage ML service
+
+The separate ML service uses the Hugging Face `rezzzq/yolo12s-road-damage-rdd2022` YOLOv12 model. It detects RDD2022 classes: `D00` longitudinal crack, `D10` transverse crack, `D20` alligator crack, `D40` pothole, and `Repair`.
+
+### Windows PowerShell
+
+```powershell
+cd ml-service
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+```
+
+The first inference downloads the model weights from Hugging Face and may take a little longer. The service exposes:
+
+- `GET http://127.0.0.1:8001/health`
+- `POST http://127.0.0.1:8001/predict/image`
+- `POST http://127.0.0.1:8001/predict/video`
+
+The driver dashboard uploads the video to the private Supabase bucket first, then sends the same file to the ML service for frame-sampled inference. Set `VITE_ML_API_URL` in `frontend/.env` if the ML service runs elsewhere.
 
 ## API integration
 
