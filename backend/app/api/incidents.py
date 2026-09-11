@@ -9,6 +9,7 @@ from app.db.database import get_db
 from app.models.incident import Incident
 from app.schemas.incident import IncidentCreate
 from app.services.realtime import manager
+from app.services.priority import priority_for
 
 
 router = APIRouter(
@@ -140,8 +141,18 @@ async def get_incidents(
 
     incidents = result.scalars().all()
 
-    return [
-        {
+    response = []
+    for incident in incidents:
+        priority = await priority_for(
+            db,
+            latitude=incident.latitude,
+            longitude=incident.longitude,
+            severity=incident.severity,
+            confidence=incident.confidence,
+            event_type=incident.incident_type,
+            fallback_confirmations=1,
+        )
+        response.append({
             "id": str(incident.id),
             "incident_type": incident.incident_type,
             "bus_id": incident.bus_id,
@@ -157,9 +168,9 @@ async def get_incidents(
             "evidence_url": incident.evidence_url,
             "severity": incident.severity,
             "status": incident.status
-        }
-        for incident in incidents
-    ]
+            , **priority
+        })
+    return sorted(response, key=lambda item: item["priority_score"], reverse=True)
 
 @router.patch("/{incident_id}/status")
 async def update_incident_status(

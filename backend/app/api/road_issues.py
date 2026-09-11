@@ -6,6 +6,7 @@ from geoalchemy2 import Geography
 
 from app.db.database import get_db
 from app.models.road_issue import RoadIssue
+from app.services.priority import priority_for
 
 
 router = APIRouter(
@@ -43,8 +44,18 @@ async def get_road_issues(
 
     issues = result.scalars().all()
 
-    return [
-        {
+    response = []
+    for issue in issues:
+        priority = await priority_for(
+            db,
+            latitude=issue.latitude,
+            longitude=issue.longitude,
+            severity=issue.severity,
+            confidence=issue.max_confidence,
+            issue_id=issue.id,
+            fallback_confirmations=issue.detection_count or 1,
+        )
+        response.append({
             "id": str(issue.id),
 
             "issue_type": issue.issue_type,
@@ -67,9 +78,9 @@ async def get_road_issues(
             "first_detected_at": issue.first_detected_at,
 
             "last_detected_at": issue.last_detected_at
-        }
-        for issue in issues
-    ]
+            , **priority
+        })
+    return sorted(response, key=lambda item: item["priority_score"], reverse=True)
 
 @router.get("/nearby")
 async def get_nearby_road_issues(
@@ -111,8 +122,18 @@ async def get_nearby_road_issues(
 
     rows = result.all()
 
-    return [
-        {
+    response = []
+    for issue, distance_value in rows:
+        priority = await priority_for(
+            db,
+            latitude=issue.latitude,
+            longitude=issue.longitude,
+            severity=issue.severity,
+            confidence=issue.max_confidence,
+            issue_id=issue.id,
+            fallback_confirmations=issue.detection_count or 1,
+        )
+        response.append({
             "id": str(issue.id),
 
             "issue_type": issue.issue_type,
@@ -137,9 +158,9 @@ async def get_nearby_road_issues(
             "first_detected_at": issue.first_detected_at,
 
             "last_detected_at": issue.last_detected_at
-        }
-        for issue, distance_value in rows
-    ]
+            , **priority
+        })
+    return sorted(response, key=lambda item: item["priority_score"], reverse=True)
 
 
 @router.patch("/{issue_id}")
