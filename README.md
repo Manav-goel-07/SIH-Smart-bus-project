@@ -465,14 +465,16 @@ The frontend provides the real-time city intelligence dashboard.
 
 Install:
 
-* Python 3.11+
+* Python 3.10+
 * Node.js 18+
 * npm
-* A Supabase project
+* A Supabase account and project
+
+The project uses Supabase PostgreSQL for the database, so a separate local PostgreSQL installation is not required.
 
 ---
 
-# Clone the Repository
+## Clone the Repository
 
 ```bash
 git clone https://github.com/NSUT-SIH-26/NSUT-SIH-DEMO.git
@@ -482,51 +484,63 @@ cd NSUT-SIH-DEMO
 
 ---
 
-# Backend Setup
+## Backend Setup
 
-Navigate to:
+Navigate to the backend:
 
-```bash
+```powershell
 cd backend
 ```
 
 Create a virtual environment:
 
-```bash
-python -m venv venv
+```powershell
+python -m venv .venv
 ```
 
 Activate it on Windows:
 
 ```powershell
-.\venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 ```
 
 Install dependencies:
 
-```bash
-pip install -r requirements.txt
+```powershell
+python -m pip install -r requirements.txt
 ```
 
-Create a `.env` file:
+Create:
+
+```text
+backend/.env
+```
+
+Add:
 
 ```env
-DATABASE_URL=your_supabase_postgresql_connection_string
+DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@HOST:5432/DATABASE_NAME
 
-SUPABASE_URL=your_supabase_project_url
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
 ```
 
 > **Do not commit `.env` or the Supabase service-role key to GitHub.**
 
-Start the backend:
+Make sure PostGIS is enabled in the Supabase database:
 
-```bash
-python -m uvicorn app.main:app --reload
+```sql
+CREATE EXTENSION IF NOT EXISTS postgis;
 ```
 
-Backend:
+Start the backend:
+
+```powershell
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+The backend will be available at:
 
 ```text
 http://127.0.0.1:8000
@@ -544,68 +558,131 @@ Health check:
 http://127.0.0.1:8000/health
 ```
 
-Expected:
+WebSocket:
 
-```json
-{
-  "status": "healthy",
-  "database": "connected"
-}
+```text
+ws://127.0.0.1:8000/ws
 ```
 
 ---
 
-# ML Setup
+## Supabase Setup
 
-Navigate to the ML directory:
+Create a Supabase project and enable Email authentication:
 
-```bash
+```text
+Authentication
+→ Providers
+→ Email
+```
+
+Then open the Supabase SQL Editor and run:
+
+```text
+supabase/schema.sql
+```
+
+This creates the required database tables, storage buckets, and storage policies.
+
+You will need the following values from your Supabase project:
+
+* Project URL
+* Anon Key
+* PostgreSQL connection string
+
+The Supabase **anon key** is safe for browser use.
+
+> Never put the Supabase service-role key in `frontend/.env`.
+
+---
+
+## ML Service Setup
+
+Open another terminal from the repository root:
+
+```powershell
 cd ml-service
 ```
 
 Create a virtual environment:
 
-```bash
-python -m venv venv
+```powershell
+python -m venv .venv
 ```
 
 Activate it:
 
 ```powershell
-.\venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 ```
 
 Install ML dependencies:
 
-```bash
+```powershell
 python -m pip install -r requirements.txt
 ```
 
-The ML service can then be started using its FastAPI/Uvicorn entry point.
+Start the ML service:
 
-For example:
-
-```bash
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+```powershell
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
-> Replace `app.main:app` with the actual ML entry point if the ML directory uses a different module structure.
+The ML service will be available at:
 
-The ML service generates structured detections that are consumed by the backend APIs.
+```text
+http://127.0.0.1:8001
+```
+
+Health check:
+
+```text
+http://127.0.0.1:8001/health
+```
+
+Image inference:
+
+```text
+POST http://127.0.0.1:8001/predict/image
+```
+
+Video inference:
+
+```text
+POST http://127.0.0.1:8001/predict/video
+```
+
+The first inference may take longer because the road-damage model is downloaded from Hugging Face.
+
+The ML service uses:
+
+```text
+rezzzq/yolo12s-road-damage-rdd2022
+```
+
+It detects:
+
+| Class  | Meaning            |
+| ------ | ------------------ |
+| D00    | Longitudinal crack |
+| D10    | Transverse crack   |
+| D20    | Alligator crack    |
+| D40    | Pothole            |
+| Repair | Road repair        |
 
 ---
 
-# Frontend Setup
+## Frontend Setup
 
-Open another terminal:
+Open another terminal from the repository root:
 
-```bash
+```powershell
 cd frontend
 ```
 
 Install dependencies:
 
-```bash
+```powershell
 npm install
 ```
 
@@ -619,21 +696,153 @@ Add:
 
 ```env
 VITE_API_URL=http://127.0.0.1:8000
+
+VITE_ML_API_URL=http://127.0.0.1:8001
+
+VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+
+VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+
+VITE_SUPABASE_VIDEO_BUCKET=bus-videos
 ```
 
 Start the frontend:
 
-```bash
+```powershell
 npm run dev
 ```
 
-Open the URL provided by Vite, typically:
+The frontend will normally be available at:
 
 ```text
 http://localhost:5173
 ```
 
+If port `5173` is already in use:
+
+```powershell
+npm run dev -- --port 5174
+```
+
 ---
+
+## Running the Complete System
+
+The reviewer should run three terminals.
+
+### Terminal 1 — Backend
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+### Terminal 2 — ML Service
+
+```powershell
+cd ml-service
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+```
+
+### Terminal 3 — Frontend
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:5173
+```
+
+The system uses:
+
+```text
+Frontend   → http://localhost:5173
+Backend    → http://127.0.0.1:8000
+ML Service → http://127.0.0.1:8001
+Supabase   → Database + Authentication + Storage
+```
+
+---
+
+## Frontend Routes
+
+* `/` — Operations dashboard
+* `/map` — Full live city map
+* `/incidents` — Incident monitoring and status workflow
+* `/road-issues` — Road issue registry
+* `/traffic` — Traffic observations and hotspot analytics
+* `/driver` — Driver video upload workspace
+
+The `/driver` workspace requires a driver profile.
+
+---
+
+## API Integration
+
+Frontend API calls are centralized in:
+
+```text
+frontend/src/services/api.js
+```
+
+Realtime WebSocket messages are handled through:
+
+```text
+frontend/src/services/websocket.js
+```
+
+Fleet data is handled through:
+
+```text
+frontend/src/hooks/useFleetData.js
+```
+
+The dashboard consumes:
+
+```text
+GET   /api/incidents/
+PATCH /api/incidents/{incident_id}/status
+
+GET   /api/road-issues/
+
+GET   /api/traffic/hotspots
+
+GET   /api/traffic/observations
+
+WS    /ws
+```
+
+The driver dashboard communicates with the ML service through:
+
+```text
+POST /predict/image
+POST /predict/video
+```
+
+---
+
+## Production Build
+
+From the frontend directory:
+
+```powershell
+npm run build
+```
+
+To preview the production build:
+
+```powershell
+npm run preview
+```
+
+For deployment, replace the local backend and ML URLs in `frontend/.env` with the deployed service URLs.
+
 
 # 6. What Does the Final Output Look Like?
 
