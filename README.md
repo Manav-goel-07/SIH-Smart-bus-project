@@ -560,7 +560,7 @@ Expected:
 Navigate to the ML directory:
 
 ```bash
-cd ml
+cd ml-service
 ```
 
 Create a virtual environment:
