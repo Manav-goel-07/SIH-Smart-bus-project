@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,19 +17,19 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# The dashboard runs on Vite during local development. Keep the allowed origins
-# explicit so the API remains locked down while supporting both local hostnames.
+configured_origins = [origin.strip().rstrip('/') for origin in os.getenv('CORS_ORIGINS', '').split(',') if origin.strip()]
+default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "https://sih-smart-bus-project.vercel.app",
+]
+allowed_origins = list(dict.fromkeys(default_origins + configured_origins))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "sih-smart-bus-project.vercel.app",
-        "https://sih-smart-bus-project-8fy9.onrender.com"
-        "https://urbaneye-ml-service.onrender.com"
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
