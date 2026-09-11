@@ -10,6 +10,8 @@ import { useFleetData } from './hooks/useFleetData'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
 import Login from './pages/Login'
 import DriverDashboard from './pages/DriverDashboard'
+import RiderDashboard from './pages/RiderDashboard'
+import LandingPage from './pages/LandingPage'
 
 export default function App() {
   return <AuthProvider><AuthenticatedApp /></AuthProvider>
@@ -18,9 +20,15 @@ export default function App() {
 function AuthenticatedApp() {
   const { user, profile, loading } = useAuth()
   if (loading) return <div className="auth-loading"><div className="auth-loading-mark"><img src="/sih-logo.png" alt="SIH logo" /></div><span>Restoring secure session</span></div>
-  if (!user) return <Routes><Route path="*" element={<Login />} /></Routes>
+  if (!user) return <Routes><Route path="/" element={<LandingPage />} /><Route path="/login" element={<Login initialMode="signin" />} /><Route path="/signup" element={<Login initialMode="signup" />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes>
   if (profile?.role === 'driver') return <Routes><Route path="/driver" element={<DriverDashboard />} /><Route path="*" element={<Navigate to="/driver" replace />} /></Routes>
+  if (profile?.role === 'user') return <RiderApp profile={profile} />
   return <AuthorityApp profile={profile} />
+}
+
+function RiderApp({ profile }) {
+  const fleet = useFleetData()
+  return <Routes><Route path="/" element={<RiderDashboard {...fleet} profile={profile} />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes>
 }
 
 function AuthorityApp({ profile }) {

@@ -1,142 +1,836 @@
-# Smart Bus Intelligence
+# 🚌 Smart Bus Intelligence
 
-Smart Bus Intelligence turns public buses into mobile urban sensing units. The backend stores and serves road issues, traffic observations, traffic hotspots, and safety incidents. The frontend provides a real-time city operations dashboard with a Leaflet map and incident workflows.
+> **Turning public buses into mobile urban sensing units for real-time city intelligence.**
 
-## Project structure
+## 📋 Problem Statement
+
+| **Problem Statement ID**    | **26124**                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------ |
+| **Problem Statement Title** | **AI-Powered Mobile Urban Intelligence Platform Using Public Transport Fleet** |
+
+## 👥 Team — Pixel-Pirates
+
+| **Team Member** | **Role**                            |
+| --------------- | ----------------------------------- |
+| **Rehan Garg**  | Backend Development                 |
+| **Manav Goel**  | Frontend Development                |
+| **Aditya**      | Machine Learning                    |
+| **Sabhya Goel** | Frontend–Backend API Integration    |
+| **Siya**        | Machine Learning                    |
+| **Tunishi**     | Project Architecture & Presentation |
+
+Smart Bus Intelligence is an AI-powered urban sensing platform that transforms existing cameras on public buses into a distributed network of mobile sensors.
+
+Instead of cameras simply recording footage, the system uses **Edge AI + Computer Vision + Geospatial Processing + Real-Time Analytics** to detect road infrastructure problems, traffic conditions, and critical safety incidents across a city.
+
+---
+
+# 1. What Problem Are We Solving?
+
+Modern cities already have a large number of public buses equipped with cameras. However, these cameras are primarily used for surveillance and post-incident analysis rather than continuous city-wide intelligence.
+
+This creates several challenges:
+
+* Road damage such as potholes may remain undetected for long periods.
+* Traffic congestion is difficult to monitor at a highly localized level.
+* Dangerous road conditions such as waterlogging or missing signs can go unnoticed.
+* Critical incidents such as hit-and-run events require rapid identification and response.
+* Information collected by individual buses is fragmented.
+* Fixed CCTV infrastructure only monitors predefined locations.
+
+Installing dedicated cameras and sensors throughout an entire city is expensive and difficult to scale.
+
+### Our key insight
+
+**Public buses already move through large portions of the city every day.**
+
+Instead of building a completely new sensing infrastructure, we transform existing buses into **mobile urban sensing units**.
+
+---
+
+# 2. What Is Our Proposed Solution?
+
+We propose **Smart Bus Intelligence**, a platform that combines computer vision running on the ML layer with a centralized backend and a real-time city command dashboard.
+
+Each participating bus continuously processes camera footage and generates structured AI detections.
+
+The system can be used to detect:
+
+### 🛣️ Road Infrastructure
+
+* Potholes
+* Damaged roads
+* Missing road dividers
+* Missing zebra crossings
+* Damaged or missing traffic signs
+* Waterlogging
+* Other road hazards
+
+### 🚦 Traffic Intelligence
+
+* Vehicle density
+* Vehicle categories
+* Traffic congestion
+* Traffic hotspots
+* Traffic patterns across monitored locations
+
+### 🚨 Safety Intelligence
+
+* Hit-and-run incidents
+* Rash/dangerous driving situations
+* Vulnerable pedestrian situations
+* Vehicle tracking
+* Vehicle registration number detection using OCR
+
+The detections are sent to the backend, where they are validated, geolocated, aggregated, stored, and delivered to the command dashboard.
+
+---
+
+# 3. How Does It Work?
+
+## System Architecture
 
 ```text
-smart-bus-intelligence/
-├── backend/        FastAPI + PostgreSQL/PostGIS service
-├── frontend/       React + Vite + Tailwind dashboard
-└── README.md
+                       PUBLIC BUS
+                           │
+                    Camera Streams
+                           │
+                           ▼
+                ┌─────────────────────┐
+                │     EDGE ML LAYER   │
+                │                     │
+                │ Object Detection    │
+                │ Classification      │
+                │ Tracking            │
+                │ OCR                 │
+                │ Computer Vision     │
+                └──────────┬──────────┘
+                           │
+                     AI Detections
+                           │
+                           ▼
+                ┌─────────────────────┐
+                │    FASTAPI BACKEND  │
+                │                     │
+                │ Validation          │
+                │ Event Processing    │
+                │ Geolocation         │
+                │ Aggregation         │
+                │ Correlation         │
+                │ Incident Management │
+                └──────────┬──────────┘
+                           │
+                           ▼
+                ┌─────────────────────┐
+                │ PostgreSQL + PostGIS│
+                │                     │
+                │ Events              │
+                │ Road Issues         │
+                │ Traffic Data        │
+                │ Hotspots            │
+                │ Incidents           │
+                └──────────┬──────────┘
+                           │
+                  REST API + WebSocket
+                           │
+                           ▼
+                ┌─────────────────────┐
+                │   CITY DASHBOARD    │
+                │                     │
+                │ Live Map            │
+                │ Incidents           │
+                │ Road Issues         │
+                │ Traffic Analytics   │
+                │ Real-time Alerts    │
+                └─────────────────────┘
 ```
+
+---
+
+## Three-Layer Responsibility
+
+The system maintains a clear separation of responsibilities.
+
+### ML Layer
+
+**Detect**
+
+The ML system processes camera footage and produces structured detections such as:
+
+```json
+{
+  "event_type": "pothole",
+  "confidence": 0.93,
+  "location": {
+    "latitude": 28.6139,
+    "longitude": 77.2090
+  }
+}
+```
+
+The ML layer focuses on computer vision and detection.
+
+---
+
+### Backend Layer
+
+**Understand and process**
+
+The backend:
+
+* Validates detections
+* Stores events
+* Associates GPS coordinates
+* Aggregates repeated detections
+* Correlates observations from multiple buses
+* Identifies traffic hotspots
+* Manages incidents
+* Stores evidence
+* Provides REST APIs
+* Sends real-time updates
+
+---
+
+### Frontend Layer
+
+**Visualize and operate**
+
+The dashboard allows authorities to:
+
+* Monitor the city map
+* View road issues
+* Monitor traffic
+* Investigate incidents
+* View evidence
+* Update incident status
+* Receive real-time alerts
+
+---
+
+# Road Issue Aggregation
+
+A major feature is the ability to recognize that multiple detections can represent the **same physical road problem**.
+
+For example:
+
+```text
+BUS_101 ──► Pothole ──► GPS A
+                         │
+BUS_102 ──► Pothole ──► GPS A + 10m
+                         │
+BUS_105 ──► Pothole ──► GPS A + 8m
+                         │
+                         ▼
+                  SAME ROAD ISSUE
+```
+
+Instead of creating three separate potholes, the backend can aggregate them into one road issue.
+
+The system tracks:
+
+* Detection count
+* Unique buses
+* Maximum confidence
+* Severity
+* First detection time
+* Last detection time
+* Associated events
+
+This allows repeated observations from different buses to provide stronger evidence that an infrastructure problem is persistent.
+
+---
+
+# Traffic Hotspot Detection
+
+Traffic observations generated by buses contain:
+
+* GPS coordinates
+* Timestamp
+* Total vehicle count
+* Cars
+* Buses
+* Trucks
+* Two-wheelers
+
+The backend groups nearby observations within a spatial and temporal window.
+
+Current MVP configuration:
+
+```text
+Spatial radius: 100 metres
+Time window:    5 minutes
+```
+
+It calculates:
+
+* Average vehicle count
+* Peak vehicle count
+* Observation count
+* Unique bus count
+* Congestion level
+
+Current MVP classification:
+
+```text
+< 15 vehicles       → LOW
+15–30 vehicles      → MEDIUM
+> 30 vehicles       → HIGH
+```
+
+These thresholds can later be replaced with road-specific or dynamically learned thresholds.
+
+---
+
+# Incident Processing
+
+Safety incidents are handled separately because they may require immediate action.
+
+An incident can contain:
+
+* Incident type
+* Bus ID
+* Timestamp
+* GPS location
+* AI confidence
+* Vehicle registration number
+* Severity
+* Evidence reference
+* Incident status
+* Additional ML metadata
+
+Incident lifecycle:
+
+```text
+NEW
+ │
+ ▼
+ACKNOWLEDGED
+ │
+ ▼
+INVESTIGATING
+ │
+ ▼
+RESOLVED
+```
+
+---
+
+# Evidence Management
+
+Important incidents can have associated image evidence.
+
+The system uses **Supabase Storage** for evidence files rather than storing image data directly inside PostgreSQL.
+
+The database stores the corresponding evidence reference.
+
+The flow is:
+
+```text
+Incident
+   │
+   ▼
+FastAPI
+   │
+   ▼
+Supabase Storage
+   │
+   ▼
+Evidence Reference
+   │
+   ▼
+Dashboard
+```
+
+This keeps large media files separate from transactional database data.
+
+---
+
+# Real-Time Updates
+
+The backend exposes a WebSocket connection for live dashboard updates.
+
+```text
+Bus / ML
+   │
+   ▼
+FastAPI
+   │
+   ├──────────────► PostgreSQL
+   │
+   └──────────────► WebSocket
+                         │
+                         ▼
+                    Live Dashboard
+```
+
+Supported real-time events include:
+
+```text
+NEW_INCIDENT
+ROAD_ISSUE_UPDATE
+TRAFFIC_HOTSPOT_UPDATE
+```
+
+When a new event arrives, the dashboard can update without requiring a complete page refresh.
+
+---
+
+# 4. Technologies Used
+
+## 🤖 Machine Learning / Computer Vision
+
+The ML service is implemented using:
+
+* **Python**
+* **FastAPI**
+* **Uvicorn**
+* **OpenCV**
+* **NumPy**
+* **Hugging Face Hub**
+* **YOLOv12**
+
+### ML Requirements
+
+```text
+fastapi
+uvicorn[standard]
+python-multipart
+opencv-python-headless
+numpy
+huggingface_hub
+ultralytics @ git+https://github.com/sunsmarterjie/yolov12.git
+```
+
+The ML service is responsible for processing visual data and producing structured detections that can be consumed by the backend.
+
+---
+
+## ⚙️ Backend
+
+* **Python**
+* **FastAPI**
+* **SQLAlchemy**
+* **AsyncPG**
+* **Pydantic**
+* **Uvicorn**
+* **GeoAlchemy2**
+* **WebSockets**
+
+The backend acts as the central intelligence and processing layer between the ML system and dashboard.
+
+---
+
+## 🗄️ Database
+
+* **PostgreSQL**
+* **PostGIS**
+* **Supabase**
+
+PostGIS provides geospatial capabilities for:
+
+* Proximity searches
+* Road issue clustering
+* Traffic hotspot detection
+* Distance calculations
+* GPS-based event processing
+
+---
+
+## ☁️ Storage
+
+**Supabase Storage**
+
+Used for storing incident evidence such as images.
+
+---
+
+## 🖥️ Frontend
+
+* **React**
+* **Vite**
+* **Tailwind CSS**
+* **React Router**
+* **Axios**
+* **Leaflet**
+* **React-Leaflet**
+* **Lucide React**
+
+The frontend provides the real-time city intelligence dashboard.
+
+---
+
+# 5. How Can a Reviewer Run It?
 
 ## Prerequisites
 
-- Python 3.10+
-- Node.js 18+
-- PostgreSQL with the PostGIS extension
-- A configured database connection string
+Install:
 
-## 1. Configure the backend
+* Python 3.11+
+* Node.js 18+
+* npm
+* A Supabase project
 
-Create `backend/.env` with the async PostgreSQL connection string used by the backend:
+---
 
-```env
-DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@HOST:5432/DATABASE_NAME
+# Clone the Repository
+
+```bash
+git clone https://github.com/NSUT-SIH-26/NSUT-SIH-DEMO.git
+
+cd NSUT-SIH-DEMO
 ```
 
-Make sure the target database has PostGIS enabled:
+---
 
-```sql
-CREATE EXTENSION IF NOT EXISTS postgis;
-```
+# Backend Setup
 
-## 2. Install and run the backend
-
-From the repository root, open a terminal and run:
-
-### Windows PowerShell
-
-```powershell
-cd backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-### macOS/Linux
+Navigate to:
 
 ```bash
 cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-The backend will be available at:
+Create a virtual environment:
 
-- API root: http://127.0.0.1:8000/
-- Health check: http://127.0.0.1:8000/health
-- WebSocket: ws://127.0.0.1:8000/ws
+```bash
+python -m venv venv
+```
 
-## 3. Configure the frontend
+Activate it on Windows:
 
-The frontend already includes a `.env` file with the default backend URL. To create your own local configuration, copy `.env.example` to `.env` inside `frontend/`:
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Create a `.env` file:
+
+```env
+DATABASE_URL=your_supabase_postgresql_connection_string
+
+SUPABASE_URL=your_supabase_project_url
+
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+```
+
+> **Do not commit `.env` or the Supabase service-role key to GitHub.**
+
+Start the backend:
+
+```bash
+python -m uvicorn app.main:app --reload
+```
+
+Backend:
+
+```text
+http://127.0.0.1:8000
+```
+
+Swagger documentation:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+Health check:
+
+```text
+http://127.0.0.1:8000/health
+```
+
+Expected:
+
+```json
+{
+  "status": "healthy",
+  "database": "connected"
+}
+```
+
+---
+
+# ML Setup
+
+Navigate to the ML directory:
+
+```bash
+cd ml
+```
+
+Create a virtual environment:
+
+```bash
+python -m venv venv
+```
+
+Activate it:
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+Install ML dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+The ML service can then be started using its FastAPI/Uvicorn entry point.
+
+For example:
+
+```bash
+python -m uvicorn app.main:app --reload
+```
+
+> Replace `app.main:app` with the actual ML entry point if the ML directory uses a different module structure.
+
+The ML service generates structured detections that are consumed by the backend APIs.
+
+---
+
+# Frontend Setup
+
+Open another terminal:
+
+```bash
+cd frontend
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Create:
+
+```text
+frontend/.env
+```
+
+Add:
 
 ```env
 VITE_API_URL=http://127.0.0.1:8000
-VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
-VITE_SUPABASE_VIDEO_BUCKET=bus-videos
 ```
 
-Change the API value if the backend is running on another host or port. Get the Supabase URL and anon key from **Project settings > API**. The anon key is safe for browser use; never put a Supabase service-role key in `frontend/.env`.
+Start the frontend:
 
-### Supabase setup
-
-1. Create a Supabase project and enable Email auth under **Authentication > Providers**.
-2. Copy `supabase/schema.sql` into the Supabase SQL editor and run it. This creates the profile table, editable profile fields, driver-owned private video storage policies, and the `bus-videos` and `profile-avatars` buckets.
-3. Start the frontend and open `/`. Users can sign up as a driver or authority. Driver accounts go to `/driver`; authority accounts go to the existing operations dashboard.
-4. For a real deployment, promote authority users manually in Supabase using the SQL comment at the bottom of `supabase/schema.sql`. Do not rely on a client-selected admin role for production authorization without adding an approval workflow.
-
-When the Supabase values are empty, the app shows the setup warning instead of pretending that authentication is working.
-
-## 4. Install and run the frontend
-
-Open a second terminal from the repository root:
-
-```powershell
-cd frontend
-npm install
+```bash
 npm run dev
 ```
 
-Vite will print the local dashboard URL, usually:
+Open the URL provided by Vite, typically:
 
 ```text
-http://localhost:5173/
+http://localhost:5173
 ```
 
-If port `5173` is already in use, start on another port:
+---
 
-```powershell
-npm run dev -- --port 5174
+# 6. What Does the Final Output Look Like?
+
+The final output is a **real-time Smart City Command Dashboard**.
+
+The main dashboard provides a unified view of intelligence collected from the bus network.
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│ SMART BUS INTELLIGENCE                    ● SYSTEM LIVE  │
+├─────────────┬────────────────────────────────────────────┤
+│             │                                            │
+│ Dashboard   │  Total Events   Road Issues   Incidents    │
+│             │       128            17          4         │
+│ Live Map    │                                            │
+│             │ ┌────────────────────────────────────────┐ │
+│ Incidents   │ │                                        │ │
+│             │ │            LIVE CITY MAP               │ │
+│ Road Issues │ │                                        │ │
+│             │ │     🔴        🟠          🔵            │ │
+│ Traffic     │ │                                        │ │
+│ Analytics   │ └────────────────────────────────────────┘ │
+│             │                                            │
+│             │ Recent Incidents     Road Issues            │
+└─────────────┴────────────────────────────────────────────┘
 ```
 
-## Frontend routes
+The actual dashboard provides:
 
-- `/` - Operations dashboard
-- `/map` - Full live city map
-- `/incidents` - Incident monitoring and status workflow
-- `/road-issues` - Corroborated road issue registry
-- `/traffic` - Traffic observations and hotspot analytics
-- `/driver` - Driver video upload workspace (requires a driver profile)
+* Live GIS map
+* Road issue markers
+* Traffic hotspot markers
+* Incident markers
+* Severity indicators
+* KPI cards
+* Incident management
+* Road issue monitoring
+* Traffic analytics
+* Evidence viewing
+* Real-time notifications
 
-## Production build
+---
 
-From `frontend/`:
+# 7. Important Features & Expected Impact
 
-```powershell
-npm run build
-npm run preview
+## 🚍 Mobile Urban Sensing
+
+Existing public buses become mobile sensing units without requiring a completely new city-wide sensing infrastructure.
+
+As buses follow their regular routes, they can continuously contribute observations from different parts of the city.
+
+---
+
+## 🤖 AI-Powered Computer Vision
+
+Camera feeds can be analyzed using computer vision models to detect infrastructure problems, vehicles, pedestrians, and safety-related events.
+
+This transforms raw camera footage into structured intelligence.
+
+---
+
+## 📍 Geospatial Intelligence
+
+Every observation is associated with geographic coordinates.
+
+PostGIS enables the backend to perform spatial operations and convert individual detections into meaningful geographic information.
+
+---
+
+## 🔄 Multi-Bus Corroboration
+
+Multiple buses can independently observe the same physical problem.
+
+```text
+BUS 101 ─┐
+BUS 102 ─┼──► Same Road Issue
+BUS 105 ─┘
 ```
 
-The frontend reads data from the FastAPI API and does not generate fake operational records. If the backend is unavailable, the dashboard shows explicit loading, empty, and error states instead of hiding the problem.
+This provides stronger evidence than relying on a single observation.
 
-## API integration
+---
 
-Frontend API calls are centralized in `frontend/src/services/api.js`. Realtime messages are handled by `frontend/src/services/websocket.js` and `frontend/src/hooks/useFleetData.js`.
+## 🚦 Real-Time Traffic Intelligence
 
-The dashboard uses these backend feeds:
+Vehicle-count observations from buses can be transformed into localized congestion hotspots.
 
-- `GET /api/incidents/`
-- `PATCH /api/incidents/{incident_id}/status`
-- `GET /api/road-issues/`
-- `GET /api/traffic/hotspots`
-- `GET /api/traffic/observations`
-- `WS /ws`
+This gives authorities a more granular understanding of traffic conditions.
 
-The optional dashboard summary endpoint is used when available; otherwise, the frontend derives visible rollups from the loaded feeds.
+---
+
+## 🚨 Faster Incident Response
+
+Critical incidents can be pushed to the command dashboard through WebSockets.
+
+This reduces the delay between:
+
+```text
+Detection
+    ↓
+Awareness
+    ↓
+Investigation
+    ↓
+Response
+```
+
+---
+
+## 🗺️ Unified City Intelligence
+
+Instead of treating road maintenance, traffic monitoring, and incident detection as isolated systems, the platform brings them together into one dashboard.
+
+---
+
+## 📈 Scalable Sensing Network
+
+The system is designed around a simple principle:
+
+```text
+More buses
+    ↓
+More routes covered
+    ↓
+More observations
+    ↓
+Greater city visibility
+```
+
+The sensing network can therefore grow as additional buses participate.
+
+---
+
+# Future Scope
+
+The current system can be extended with:
+
+* Live bus tracking
+* Route-level traffic intelligence
+* Dynamic congestion thresholds
+* Historical traffic analytics
+* Predictive congestion
+* Predictive road maintenance
+* Automated maintenance prioritization
+* Advanced vehicle re-identification
+* Improved OCR
+* Role-based access control
+* Mobile command-center interface
+* Edge-device fleet management
+* Advanced event correlation
+* Distributed event processing for very large deployments
+
+---
+
+# System Design Philosophy
+
+The architecture follows a strict responsibility boundary:
+
+```text
+┌───────────────────────────────┐
+│          ML / EDGE            │
+│                               │
+│ Detect                        │
+│ Classify                      │
+│ Track                         │
+│ OCR                           │
+└───────────────┬───────────────┘
+                │
+                ▼
+┌───────────────────────────────┐
+│           BACKEND             │
+│                               │
+│ Validate                      │
+│ Aggregate                     │
+│ Geolocate                     │
+│ Correlate                     │
+│ Store                         │
+│ Broadcast                     │
+└───────────────┬───────────────┘
+                │
+                ▼
+┌───────────────────────────────┐
+│          FRONTEND             │
+│                               │
+│ Visualize                     │
+│ Monitor                       │
+│ Investigate                   │
+│ Manage                        │
+└───────────────────────────────┘
+```
+
+This separation allows the ML, backend, and frontend layers to evolve independently while communicating through well-defined interfaces.
+
+---
+
+# 🎯 Core Idea
+
+> **Don't build more cameras. Make the cameras already moving through the city intelligent.**
+
+Smart Bus Intelligence transforms public transportation from a passive surveillance network into a **distributed, AI-powered, real-time urban sensing system**.
