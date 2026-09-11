@@ -24,7 +24,7 @@ default_origins = [
     "http://localhost:5174",
     "http://127.0.0.1:5174",
     "https://sih-smart-bus-project.vercel.app",
-    "https://sih-smart-bus-project-8fy9.onrender.com/"
+    "https://sih-smart-bus-project-8fy9.onrender.com"
 ]
 allowed_origins = list(dict.fromkeys(default_origins + configured_origins))
 

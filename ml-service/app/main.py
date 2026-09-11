@@ -24,6 +24,7 @@ VEHICLE_MODEL_REPO = os.getenv("VEHICLE_MODEL_REPO", "Madan11/two-wheeler-detect
 VEHICLE_MODEL_FILENAME = os.getenv("VEHICLE_MODEL_FILENAME", "best.pt")
 VEHICLE_MODEL_PATH = os.getenv("VEHICLE_MODEL_PATH", str(Path(__file__).resolve().parent.parent / "models" / "vehicle_best.pt"))
 VEHICLE_CONFIDENCE = float(os.getenv("ML_VEHICLE_CONFIDENCE", "0.25"))
+ENABLE_VEHICLES = os.getenv("ML_ENABLE_VEHICLES", "true").lower() in {"1", "true", "yes", "on"}
 CONFIDENCE = float(os.getenv("ML_CONFIDENCE", "0.10"))
 IMAGE_SIZE = int(os.getenv("ML_IMAGE_SIZE", "640"))
 USE_AUGMENT = os.getenv("ML_AUGMENT", "true").lower() in {"1", "true", "yes", "on"}
@@ -33,11 +34,20 @@ FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")
 
 app = FastAPI(title="UrbanEye Road Damage ML Service", version="1.0.0")
 logger = logging.getLogger("urbaneye-ml")
+configured_origins = [origin.strip().rstrip('/') for origin in os.getenv('CORS_ORIGINS', '').split(',') if origin.strip()]
+default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "https://sih-smart-bus-project.vercel.app",
+]
+allowed_origins = list(dict.fromkeys(default_origins + configured_origins))
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -130,9 +140,9 @@ def infer_result(image: Any, detector: YOLO | None = None, confidence: float | N
     return detector.predict(source=image, conf=confidence or CONFIDENCE, imgsz=IMAGE_SIZE, augment=USE_AUGMENT, verbose=False)[0]
 
 
-def annotate_frame(frame: Any, road_result: Any, vehicle_result: Any) -> Any:
+def annotate_frame(frame: Any, road_result: Any, vehicle_result: Any = None) -> Any:
     annotated = road_result.plot(img=frame, labels=True, boxes=True)
-    return vehicle_result.plot(img=annotated, labels=True, boxes=True)
+    return vehicle_result.plot(img=annotated, labels=True, boxes=True) if vehicle_result is not None else annotated
 
 
 def infer_frame(image: Any, frame_number: int, timestamp_seconds: float) -> list[dict[str, Any]]:
@@ -157,7 +167,7 @@ def summarize(detections: list[dict[str, Any]], frames_processed: int, duration_
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "models": {"road_damage": MODEL_REPO, "vehicles": VEHICLE_MODEL_REPO}, "model_files": {"road_damage": MODEL_FILENAME, "vehicles": VEHICLE_MODEL_PATH if Path(VEHICLE_MODEL_PATH).exists() else VEHICLE_MODEL_FILENAME}, "models_loaded": {"road_damage": model is not None, "vehicles": vehicle_model is not None}, "confidence": {"road_damage": CONFIDENCE, "vehicles": VEHICLE_CONFIDENCE}, "image_size": IMAGE_SIZE, "augment": USE_AUGMENT}
+    return {"status": "ok", "models": {"road_damage": MODEL_REPO, "vehicles": VEHICLE_MODEL_REPO if ENABLE_VEHICLES else None}, "model_files": {"road_damage": MODEL_FILENAME, "vehicles": VEHICLE_MODEL_PATH if ENABLE_VEHICLES and Path(VEHICLE_MODEL_PATH).exists() else (VEHICLE_MODEL_FILENAME if ENABLE_VEHICLES else None)}, "models_loaded": {"road_damage": model is not None, "vehicles": vehicle_model is not None}, "vehicle_detection_enabled": ENABLE_VEHICLES, "confidence": {"road_damage": CONFIDENCE, "vehicles": VEHICLE_CONFIDENCE}, "image_size": IMAGE_SIZE, "augment": USE_AUGMENT}
 
 
 @app.post("/predict/image")
@@ -177,11 +187,12 @@ async def predict_image(file: UploadFile = File(...)) -> dict[str, Any]:
         if image is None:
             raise HTTPException(status_code=400, detail="The image could not be decoded.")
         road_detector = get_model()
-        vehicle_detector = get_vehicle_model()
+        vehicle_detector = get_vehicle_model() if ENABLE_VEHICLES else None
         road_result = infer_result(temp_path, road_detector, CONFIDENCE)
-        vehicle_result = infer_result(temp_path, vehicle_detector, VEHICLE_CONFIDENCE)
+        vehicle_result = infer_result(temp_path, vehicle_detector, VEHICLE_CONFIDENCE) if vehicle_detector is not None else None
         detections = detections_from_result(road_result, road_detector, 0, 0)
-        detections.extend(detections_from_result(vehicle_result, vehicle_detector, 0, 0))
+        if vehicle_result is not None:
+            detections.extend(detections_from_result(vehicle_result, vehicle_detector, 0, 0))
         annotated_image = annotate_frame(image, road_result, vehicle_result)
         encoded_ok, encoded = cv2.imencode(".jpg", annotated_image, [cv2.IMWRITE_JPEG_QUALITY, 90])
         if not encoded_ok:
@@ -247,11 +258,12 @@ async def predict_video(file: UploadFile = File(...)) -> dict[str, Any]:
                 output_frame = frame
                 if frame_number % FRAME_INTERVAL == 0:
                     road_detector = get_model()
-                    vehicle_detector = get_vehicle_model()
+                    vehicle_detector = get_vehicle_model() if ENABLE_VEHICLES else None
                     road_result = infer_result(frame, road_detector, CONFIDENCE)
-                    vehicle_result = infer_result(frame, vehicle_detector, VEHICLE_CONFIDENCE)
+                    vehicle_result = infer_result(frame, vehicle_detector, VEHICLE_CONFIDENCE) if vehicle_detector is not None else None
                     detections.extend(detections_from_result(road_result, road_detector, frame_number, frame_number / fps))
-                    detections.extend(detections_from_result(vehicle_result, vehicle_detector, frame_number, frame_number / fps))
+                    if vehicle_result is not None:
+                        detections.extend(detections_from_result(vehicle_result, vehicle_detector, frame_number, frame_number / fps))
                     output_frame = annotate_frame(frame, road_result, vehicle_result)
                     frames_processed += 1
                 writer.write(output_frame)
@@ -275,7 +287,7 @@ async def predict_video(file: UploadFile = File(...)) -> dict[str, Any]:
             annotated_video = base64.b64encode(annotated_file.read()).decode("ascii")
         return {
             "file_name": file.filename,
-            "models": {"road_damage": MODEL_REPO, "vehicles": VEHICLE_MODEL_REPO},
+            "models": {"road_damage": MODEL_REPO, "vehicles": VEHICLE_MODEL_REPO if ENABLE_VEHICLES else None},
             "detections": detections,
             "summary": summarize(detections, frames_processed, duration),
             "annotated_video_base64": annotated_video,
