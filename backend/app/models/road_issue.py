@@ -52,6 +52,12 @@ class RoadIssue(Base):
         nullable=True
     )
 
+    status: Mapped[str] = mapped_column(
+        String,
+        default="PENDING",
+        nullable=False
+    )
+
     evidence_url: Mapped[str | None] = mapped_column(
         Text,
         nullable=True

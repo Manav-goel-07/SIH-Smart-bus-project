@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from fastapi import HTTPException
 from sqlalchemy import select, func, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 from geoalchemy2 import Geography
@@ -58,6 +59,8 @@ async def get_road_issues(
             "max_confidence": issue.max_confidence,
 
             "severity": issue.severity,
+
+            "status": issue.status,
 
             "evidence_url": issue.evidence_url,
 
@@ -127,6 +130,8 @@ async def get_nearby_road_issues(
 
             "severity": issue.severity,
 
+            "status": issue.status,
+
             "evidence_url": issue.evidence_url,
 
             "first_detected_at": issue.first_detected_at,
@@ -135,3 +140,28 @@ async def get_nearby_road_issues(
         }
         for issue, distance_value in rows
     ]
+
+
+@router.patch("/{issue_id}")
+async def update_road_issue(
+    issue_id: str,
+    status: str | None = None,
+    evidence_url: str | None = None,
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(RoadIssue).where(RoadIssue.id == issue_id))
+    issue = result.scalar_one_or_none()
+    if issue is None:
+        raise HTTPException(status_code=404, detail="Road issue not found")
+
+    allowed_statuses = {"PENDING", "ACKNOWLEDGED", "IN_PROGRESS", "RESOLVED", "NEW", "INVESTIGATING"}
+    if status is not None:
+        status = status.upper()
+        if status not in allowed_statuses:
+            raise HTTPException(status_code=400, detail=f"Invalid status. Allowed values: {sorted(allowed_statuses)}")
+        issue.status = status
+    if evidence_url is not None:
+        issue.evidence_url = evidence_url
+    await db.commit()
+    await db.refresh(issue)
+    return {"message": "Road issue updated", "id": str(issue.id), "status": issue.status, "evidence_url": issue.evidence_url}

@@ -578,7 +578,7 @@ Activate it:
 Install ML dependencies:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 The ML service can then be started using its FastAPI/Uvicorn entry point.
@@ -586,7 +586,7 @@ The ML service can then be started using its FastAPI/Uvicorn entry point.
 For example:
 
 ```bash
-python -m uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
 > Replace `app.main:app` with the actual ML entry point if the ML directory uses a different module structure.

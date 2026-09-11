@@ -18,6 +18,10 @@ do $$
 begin
   if to_regclass('public.road_issues') is not null then
     alter table public.road_issues add column if not exists evidence_url text;
+    alter table public.road_issues add column if not exists status text not null default 'PENDING';
+  end if;
+  if to_regclass('public.incidents') is not null then
+    alter table public.incidents add column if not exists evidence_url text;
   end if;
 end $$;
 alter table public.profiles enable row level security;

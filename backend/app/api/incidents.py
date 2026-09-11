@@ -165,6 +165,7 @@ async def get_incidents(
 async def update_incident_status(
     incident_id: str,
     status: str,
+    evidence_url: str | None = None,
     db: AsyncSession = Depends(get_db)
 ):
     query = select(Incident).where(
@@ -183,7 +184,9 @@ async def update_incident_status(
 
     allowed_statuses = {
         "NEW",
+        "PENDING",
         "ACKNOWLEDGED",
+        "IN_PROGRESS",
         "INVESTIGATING",
         "RESOLVED"
     }
@@ -195,6 +198,8 @@ async def update_incident_status(
         )
 
     incident.status = status
+    if evidence_url is not None:
+        incident.evidence_url = evidence_url
 
     await db.commit()
     await db.refresh(incident)
@@ -202,5 +207,6 @@ async def update_incident_status(
     return {
         "message": "Incident status updated",
         "id": str(incident.id),
-        "status": incident.status
+        "status": incident.status,
+        "evidence_url": incident.evidence_url
     }

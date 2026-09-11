@@ -36,6 +36,7 @@ def road_issue_payload(issue: RoadIssue) -> dict:
         "detection_count": issue.detection_count,
         "max_confidence": issue.max_confidence,
         "severity": issue.severity,
+        "status": issue.status,
         "evidence_url": issue.evidence_url,
         "first_detected_at": issue.first_detected_at.isoformat(),
         "last_detected_at": issue.last_detected_at.isoformat(),
@@ -117,6 +118,7 @@ async def create_event(
                 detection_count=1,
                 max_confidence=event_data.confidence,
                 severity=event_data.severity,
+                status="PENDING",
                 evidence_url=event_data.evidence_url,
                 first_detected_at=event_data.timestamp,
                 last_detected_at=event_data.timestamp

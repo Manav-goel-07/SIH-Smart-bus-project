@@ -35,6 +35,8 @@ export const apiService = {
   hotspots: (params = {}) => api.get('/api/traffic/hotspots', { params }).then((r) => r.data),
   observations: (params = {}) => api.get('/api/traffic/observations', { params }).then((r) => r.data),
   updateIncidentStatus: (id, status) => api.patch(`/api/incidents/${id}/status`, null, { params: { status } }).then((r) => r.data),
+  updateIncident: (id, status, evidenceUrl) => api.patch(`/api/incidents/${id}/status`, null, { params: { status, ...(evidenceUrl ? { evidence_url: evidenceUrl } : {}) } }).then((r) => r.data),
+  updateRoadIssue: (id, status, evidenceUrl) => api.patch(`/api/road-issues/${id}`, null, { params: { status, ...(evidenceUrl ? { evidence_url: evidenceUrl } : {}) } }).then((r) => r.data),
   analyzeVideo: (file) => requestMl('/predict/video', file),
   analyzeImage: (file) => requestMl('/predict/image', file)
 }
