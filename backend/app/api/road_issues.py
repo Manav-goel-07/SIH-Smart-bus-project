@@ -59,6 +59,8 @@ async def get_road_issues(
 
             "severity": issue.severity,
 
+            "evidence_url": issue.evidence_url,
+
             "first_detected_at": issue.first_detected_at,
 
             "last_detected_at": issue.last_detected_at
@@ -124,6 +126,8 @@ async def get_nearby_road_issues(
             "max_confidence": issue.max_confidence,
 
             "severity": issue.severity,
+
+            "evidence_url": issue.evidence_url,
 
             "first_detected_at": issue.first_detected_at,
 

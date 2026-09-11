@@ -7,6 +7,7 @@ from app.db.database import get_db
 from app.schemas.event import EventCreate
 from app.models.event import Event
 from app.models.road_issue import RoadIssue
+from app.services.realtime import manager
 
 from fastapi import HTTPException
 from uuid import UUID
@@ -18,6 +19,29 @@ router = APIRouter(
 )
 
 
+def normalize_road_issue_type(value: str) -> str:
+    normalized = value.strip().lower().replace("_", "-")
+    if normalized in {"d40", "pothole", "potholes"}:
+        return "pothole"
+    if normalized in {"d00", "d10", "d20", "crack", "cracks", "road-crack"}:
+        return "crack"
+    return normalized
+
+
+def road_issue_payload(issue: RoadIssue) -> dict:
+    return {
+        "id": str(issue.id),
+        "issue_type": issue.issue_type,
+        "location": {"latitude": issue.latitude, "longitude": issue.longitude},
+        "detection_count": issue.detection_count,
+        "max_confidence": issue.max_confidence,
+        "severity": issue.severity,
+        "evidence_url": issue.evidence_url,
+        "first_detected_at": issue.first_detected_at.isoformat(),
+        "last_detected_at": issue.last_detected_at.isoformat(),
+    }
+
+
 @router.post("/")
 async def create_event(
     event_data: EventCreate,
@@ -25,6 +49,7 @@ async def create_event(
 ):
     lat = event_data.location.latitude
     lon = event_data.location.longitude
+    normalized_event_type = normalize_road_issue_type(event_data.event_type)
 
     # Create PostGIS point
     location_expr = cast(
@@ -35,19 +60,18 @@ async def create_event(
         Geography(geometry_type="POINT", srid=4326)
     )
 
+    road_issue = None
     road_issue_id = None
     is_new_issue = False
 
     # Currently cluster potholes.
     # Later we can add other issue types.
-    clusterable_types = {
-        "pothole"
-    }
+    clusterable_types = {"pothole", "crack"}
 
-    if event_data.event_type in clusterable_types:
+    if normalized_event_type in clusterable_types:
 
         issue_query = select(RoadIssue).where(
-            RoadIssue.issue_type == event_data.event_type,
+            RoadIssue.issue_type == normalized_event_type,
             func.ST_DWithin(
                 RoadIssue.location,
                 location_expr,
@@ -74,6 +98,9 @@ async def create_event(
 
             road_issue.last_detected_at = event_data.timestamp
 
+            if event_data.evidence_url:
+                road_issue.evidence_url = event_data.evidence_url
+
             if event_data.severity is not None:
                 road_issue.severity = event_data.severity
 
@@ -83,13 +110,14 @@ async def create_event(
 
             # New road issue
             road_issue = RoadIssue(
-                issue_type=event_data.event_type,
+                issue_type=normalized_event_type,
                 location=location_expr,
                 latitude=lat,
                 longitude=lon,
                 detection_count=1,
                 max_confidence=event_data.confidence,
                 severity=event_data.severity,
+                evidence_url=event_data.evidence_url,
                 first_detected_at=event_data.timestamp,
                 last_detected_at=event_data.timestamp
             )
@@ -104,7 +132,7 @@ async def create_event(
 
     # ALWAYS store the raw event
     event = Event(
-        event_type=event_data.event_type,
+        event_type=normalized_event_type,
         bus_id=event_data.bus_id,
         timestamp=event_data.timestamp,
         latitude=lat,
@@ -122,8 +150,29 @@ async def create_event(
     await db.commit()
     await db.refresh(event)
 
+    if road_issue:
+        await manager.broadcast({
+            "type": "ROAD_ISSUE_UPDATE",
+            "road_issue": road_issue_payload(road_issue),
+        })
+
+    await manager.broadcast({
+        "type": "NEW_EVENT",
+        "event": {
+            "id": str(event.id),
+            "event_type": event.event_type,
+            "bus_id": event.bus_id,
+            "timestamp": event.timestamp.isoformat(),
+            "location": {"latitude": event.latitude, "longitude": event.longitude},
+            "confidence": event.confidence,
+            "severity": event.severity,
+            "evidence_url": event.evidence_url,
+            "road_issue_id": str(event.road_issue_id) if event.road_issue_id else None,
+        },
+    })
+
     return {
-        "message": "Event created and linked to road issue",
+        "message": "Complaint created and linked to road issue",
         "event_id": str(event.id),
         "road_issue_id": (
             str(road_issue_id)

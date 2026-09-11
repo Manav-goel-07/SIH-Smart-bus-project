@@ -13,6 +13,13 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists avatar_url text;
 alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check check (role in ('driver', 'admin', 'user'));
+
+do $$
+begin
+  if to_regclass('public.road_issues') is not null then
+    alter table public.road_issues add column if not exists evidence_url text;
+  end if;
+end $$;
 alter table public.profiles enable row level security;
 grant usage on schema public to authenticated;
 grant select, update on table public.profiles to authenticated;
@@ -75,6 +82,26 @@ create policy "Drivers can upload their own images" on storage.objects for inser
 drop policy if exists "Users can view their own images" on storage.objects;
 create policy "Users can view their own images" on storage.objects for select
   to authenticated using (bucket_id = 'bus-images' and (storage.foldername(name))[1] = (select auth.uid()::text));
+
+drop policy if exists "Authorities can view road evidence" on storage.objects;
+create policy "Authorities can view road evidence" on storage.objects for select
+  to authenticated using (
+    bucket_id = 'bus-images'
+    and exists (
+      select 1 from public.profiles
+      where profiles.id = auth.uid() and profiles.role = 'admin'
+    )
+  );
+
+drop policy if exists "Authorities can view road videos" on storage.objects;
+create policy "Authorities can view road videos" on storage.objects for select
+  to authenticated using (
+    bucket_id = 'bus-videos'
+    and exists (
+      select 1 from public.profiles
+      where profiles.id = auth.uid() and profiles.role = 'admin'
+    )
+  );
 
 drop policy if exists "Users can upload their own avatar" on storage.objects;
 create policy "Users can upload their own avatar" on storage.objects for insert

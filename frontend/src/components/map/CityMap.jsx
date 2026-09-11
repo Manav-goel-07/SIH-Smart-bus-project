@@ -3,6 +3,7 @@ import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, useMap 
 import L from 'leaflet'
 import { Camera, CarFront, Crosshair, Layers3, Map as MapIcon, Minus, Plus, ShieldAlert, Siren, TrafficCone, TrainFront, UsersRound } from 'lucide-react'
 import { coord, confidence, relativeTime, titleCase } from '../../utils/format'
+import { supabase } from '../../lib/supabase'
 
 const center = [28.6139, 77.209]
 const layerDefaults = { traffic: true, incidents: true, cctv: true, fleet: true, pedestrian: true, signals: true, infrastructure: true }
@@ -71,5 +72,32 @@ function PopupShell({ eyebrow, title, children }) { return <div className="map-p
 function PopupLine({ label, value }) { return <div className="popup-line"><span>{label}</span><b>{value || '—'}</b></div> }
 function IncidentPopup({ incident }) { return <PopupShell eyebrow="Incident hotspot" title={titleCase(incident.incident_type)}><PopupLine label="Location" value={coord(incident.location)} /><PopupLine label="Severity" value={titleCase(incident.severity)} /><PopupLine label="Time" value={relativeTime(incident.timestamp)} /><PopupLine label="Confidence" value={confidence(incident.confidence)} /></PopupShell> }
 function TrafficPopup({ hotspot, route }) { const source = hotspot || route?.reading || {}; const level = hotspot?.level || route?.level; const speed = numeric(source.avg_speed, source.average_speed, source.speed); const delay = numeric(source.current_delay, source.delay_minutes, source.delay); return <PopupShell eyebrow="Traffic condition" title={`${titleCase(level)} traffic`}><PopupLine label="Location" value={coord(source.location)} />{route && <PopupLine label="Bus path" value={route.busId} />}<PopupLine label="Vehicles" value={source.avg_vehicle_count ?? source.vehicle_count} /><PopupLine label="Avg speed" value={speed === undefined ? 'Not reported' : `${speed} km/h`} /><PopupLine label="Current delay" value={delay === undefined ? 'Not reported' : `${delay} min`} /><PopupLine label="Buses" value={source.unique_bus_count} /></PopupShell> }
-function RoadPopup({ issue }) { return <PopupShell eyebrow="Infrastructure signal" title={titleCase(issue.issue_type)}><PopupLine label="Location" value={coord(issue.location)} /><PopupLine label="Severity" value={titleCase(issue.severity)} /><PopupLine label="Detections" value={issue.detection_count} /><PopupLine label="Confidence" value={confidence(issue.max_confidence)} /></PopupShell> }
+function RoadPopup({ issue }) { return <PopupShell eyebrow="Infrastructure signal" title={titleCase(issue.issue_type)}><PopupLine label="Location" value={coord(issue.location)} /><PopupLine label="Severity" value={titleCase(issue.severity)} /><PopupLine label="Detections" value={issue.detection_count} /><PopupLine label="Confidence" value={confidence(issue.max_confidence)} /><EvidencePreview evidencePath={issue.evidence_url} /></PopupShell> }
+function EvidencePreview({ evidencePath }) {
+  const [url, setUrl] = useState('')
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let active = true
+    if (!evidencePath) return undefined
+    if (/^https?:\/\//i.test(evidencePath)) {
+      setUrl(evidencePath)
+      return undefined
+    }
+    const separator = evidencePath.indexOf('/')
+    const bucket = separator > 0 ? evidencePath.slice(0, separator) : 'bus-images'
+    const path = separator > 0 ? evidencePath.slice(separator + 1) : evidencePath
+    if (!supabase) return undefined
+    supabase.storage.from(bucket).createSignedUrl(path, 3600).then(({ data, error: signedError }) => {
+      if (!active) return
+      if (signedError) setError('Evidence preview unavailable')
+      else setUrl(data?.signedUrl || '')
+    })
+    return () => { active = false }
+  }, [evidencePath])
+  if (!evidencePath) return null
+  if (error) return <div className="evidence-preview-error">{error}</div>
+  if (!url) return <div className="evidence-preview-loading">Loading photo evidence…</div>
+  const isVideo = /\.(mp4|mov|webm|avi)(\?|$)/i.test(evidencePath)
+  return <div className="evidence-preview"><span>Photo evidence</span>{isVideo ? <video controls muted playsInline src={url} /> : <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="Road issue evidence" /></a>}</div>
+}
 function FleetPopup({ observation }) { return <PopupShell eyebrow="Live fleet sensor" title={observation.bus_id}><PopupLine label="Vehicles" value={observation.vehicle_count} /><PopupLine label="Time" value={relativeTime(observation.timestamp)} /><PopupLine label="Location" value={coord(observation.location)} /></PopupShell> }

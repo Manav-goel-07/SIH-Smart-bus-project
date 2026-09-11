@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import String, Float, Integer, DateTime
+from sqlalchemy import String, Float, Integer, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from geoalchemy2 import Geography
@@ -49,6 +49,11 @@ class RoadIssue(Base):
 
     severity: Mapped[str | None] = mapped_column(
         String,
+        nullable=True
+    )
+
+    evidence_url: Mapped[str | None] = mapped_column(
+        Text,
         nullable=True
     )
 
