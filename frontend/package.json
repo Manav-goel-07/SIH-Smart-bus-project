@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "latest",
+    "@vercel/analytics": "^2.0.1",
     "@vitejs/plugin-react": "latest",
     "axios": "latest",
     "leaflet": "latest",
@@ -16,8 +18,7 @@
     "react": "latest",
     "react-dom": "latest",
     "react-leaflet": "latest",
-    "react-router-dom": "latest",
-    "@supabase/supabase-js": "latest"
+    "react-router-dom": "latest"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "latest",
