@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import AppShell from './components/layout/AppShell'
 import Dashboard from './pages/Dashboard'
 import Incidents from './pages/Incidents'
@@ -14,7 +15,12 @@ import RiderDashboard from './pages/RiderDashboard'
 import LandingPage from './pages/LandingPage'
 
 export default function App() {
-  return <AuthProvider><AuthenticatedApp /></AuthProvider>
+  return (
+    <AuthProvider>
+      <AuthenticatedApp />
+      <Analytics />
+    </AuthProvider>
+  )
 }
 
 function AuthenticatedApp() {
